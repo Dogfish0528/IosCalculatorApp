@@ -54,3 +54,13 @@ AI 回應：
 1. 更新各語系應用名稱 strings.xml：英文 (values & values-en) 設為 Calculator、簡體中文 (values-zh-rCN) 設為计算器、繁體中文 (values-zh-rTW & values-zh-rHK) 設為計算機。
 2. 設計並套用專屬 iOS 計算機風格 Android Adaptive Launcher Icon (ic_launcher_background.xml、ic_launcher_foreground.xml、ic_launcher_monochrome.xml 與 mipmap-anydpi)，移除預設 Android 綠機器人 webp 資源，並製作 docs/app-icon.svg。
 3. 撰寫完整三語 README 介紹文件（README.md、README_zh-CN.md、README_en.md），重編譯驗證通過後更新 GitHub Repository 與 Release v1.0.0 安裝檔。
+
+--------------------------------------------------------------------------------
+[2026-11-22 11:55] 用戶提問 / AI 回應
+--------------------------------------------------------------------------------
+用戶提問：不是啊，在桌面的時候，圖示為什麼還是預設的圖示？右邊那個圖示是我下載的其他版本，左邊的才是我們的。把圖示換成右邊那種。
+AI 回應：
+1. 診斷桌面仍顯示預設綠色 Android 機器人原因：專案缺少各密度 mipmap 點陣 fallback PNG、前次建置資源快取及 versionCode 未遞增導致桌面啟動器維持舊圖示快取，且 `ic_launcher_background.xml` 內含 `<aapt:attr>` 合成漸層資源。
+2. 全面重繪並對齊目標圖示樣式：將背景改為純銀灰 `#C8C8CC`（移除 `<aapt:attr>`），前景重繪為中央黑色圓角計算機機身 `#18181A`、上方灰色螢幕 `#636366` 與 3×3 圓形按鍵（左兩欄白色 `#FFFFFF`、右欄橘色 `#FF9500`），並同步更新 `ic_launcher_monochrome.xml` 與 `docs/app-icon.svg`。
+3. 於 `mipmap-mdpi` 至 `mipmap-xxxhdpi` 生成對應高解析抗鋸齒 `ic_launcher.png` 與 `ic_launcher_round.png`，並將 `app/build.gradle.kts` 的 `versionCode` 升級為 `2`、`versionName` 升級為 `"1.0.1"` 以清除桌面快取。
+4. 執行 `:app:clean testDebugUnitTest assembleDebug` 完整清理與測試通過，驗證 APK 資源無誤後推送至 GitHub 並更新 Release `v1.0.0` 下載的 APK 檔案。
