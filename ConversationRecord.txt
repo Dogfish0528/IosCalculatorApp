@@ -64,3 +64,15 @@ AI 回應：
 2. 全面重繪並對齊目標圖示樣式：將背景改為純銀灰 `#C8C8CC`（移除 `<aapt:attr>`），前景重繪為中央黑色圓角計算機機身 `#18181A`、上方灰色螢幕 `#636366` 與 3×3 圓形按鍵（左兩欄白色 `#FFFFFF`、右欄橘色 `#FF9500`），並同步更新 `ic_launcher_monochrome.xml` 與 `docs/app-icon.svg`。
 3. 於 `mipmap-mdpi` 至 `mipmap-xxxhdpi` 生成對應高解析抗鋸齒 `ic_launcher.png` 與 `ic_launcher_round.png`，並將 `app/build.gradle.kts` 的 `versionCode` 升級為 `2`、`versionName` 升級為 `"1.0.1"` 以清除桌面快取。
 4. 執行 `:app:clean testDebugUnitTest assembleDebug` 完整清理與測試通過，驗證 APK 資源無誤後推送至 GitHub 並更新 Release `v1.0.0` 下載的 APK 檔案。
+
+--------------------------------------------------------------------------------
+[2026-11-22 12:40] 用戶提問 / AI 回應
+--------------------------------------------------------------------------------
+用戶提問：啟動速度可以快一點嗎
+AI 回應：
+1. 診斷冷啟動耗時主因：原先 Release APK 實為未優化的 Debug APK（12.7 MB、6 個未裁切 DEX 達 31 MB 且啟用除錯直譯執行）、白底 Splash 動畫延遲、啟動時初始化 EmojiCompatInitializer、首幀同步執行歷程 JSON I/O 與字體解碼，以及根層多餘 Scaffold 與大量按鈕動畫協程。
+2. 改為完整 R8 Release 建置（`app/build.gradle.kts` 移除局部 `packageScope` 改用全量 `optimization { enable = true }`、`signingConfigs.getByName("debug")`、`versionCode = 3`、`versionName = "1.0.2"`），APK 縮減至 1.41 MB、主 `classes.dex` 濃縮為 108 KB。
+3. 新增 `baseline-prof.txt` 與具體簽名 `baselineProfiles/startup-prof.txt`，並於 APK 打包 `assets/dexopt/baseline.prof`。
+4. 修改 `themes.xml` 與 `values-v31/themes.xml` 為黑底零動畫瞬開主題；於 `AndroidManifest.xml` 移除 `EmojiCompatInitializer`。
+5. 最佳化 `IosStylePreferences` 單次讀取與預載、`MainActivity.onCreate()` 背景執行緒預熱 `inter_display_medium.ttf`、首幀後透過 `Dispatchers.IO` 非同步載入歷程、移除根層 `Scaffold` 改用 `BoxWithConstraints + systemBarsPadding()`、延遲建立 `sciRows` 並新增 `rememberLazyAnimatedColor` 消除首幀按鈕動畫協程。
+6. 執行 `testDebugUnitTest`（9 項全數通過）與 `assembleRelease`，以 `aapt2` 與 `apksigner` 驗證通過後推送 GitHub 並更新 Release `v1.0.0` APK。

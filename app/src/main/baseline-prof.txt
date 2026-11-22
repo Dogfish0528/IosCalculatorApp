@@ -1,0 +1,16 @@
+Lcom/example/ioscalculatorapp/MainActivity;
+HSPLcom/example/ioscalculatorapp/MainActivity;->**(**)**
+Lcom/example/ioscalculatorapp/MainActivityKt;
+HSPLcom/example/ioscalculatorapp/MainActivityKt;->**(**)**
+Lcom/example/ioscalculatorapp/IosStyleSettingsKt;
+HSPLcom/example/ioscalculatorapp/IosStyleSettingsKt;->**(**)**
+Lcom/example/ioscalculatorapp/IosStylePreferences;
+HSPLcom/example/ioscalculatorapp/IosStylePreferences;->**(**)**
+Lcom/example/ioscalculatorapp/IosCalculatorStyle;
+HSPLcom/example/ioscalculatorapp/IosCalculatorStyle;->**(**)**
+Lcom/example/ioscalculatorapp/IosStyleSettingsData;
+HSPLcom/example/ioscalculatorapp/IosStyleSettingsData;->**(**)**
+Lcom/example/ioscalculatorapp/ResolvedIosAppearance;
+HSPLcom/example/ioscalculatorapp/ResolvedIosAppearance;->**(**)**
+Lcom/example/ioscalculatorapp/CalculatorEngine;
+HSPLcom/example/ioscalculatorapp/CalculatorEngine;->**(**)**

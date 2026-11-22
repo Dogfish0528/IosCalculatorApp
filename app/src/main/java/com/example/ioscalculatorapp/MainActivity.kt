@@ -42,7 +42,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -72,6 +71,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
@@ -87,12 +88,29 @@ import kotlin.math.*
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 提前非同步載入偏好設定並於背景執行緒預熱自訂字體快取，避免首幀主執行緒解碼延遲
+        IosStylePreferences.preload(applicationContext)
+        val appContext = applicationContext
+        Thread {
+            try {
+                appContext.resources.getFont(R.font.inter_display_medium)
+            } catch (_: Throwable) {
+            }
+        }.apply {
+            isDaemon = true
+            name = "FontWarmup"
+            start()
+        }
         enableEdgeToEdge()
         setContent {
             IosCalculatorApp()
         }
     }
 }
+
+private val BasicOperatorSymbols = setOf("÷", "×", "−", "+", "=")
+private val ActiveOperatorSymbols = setOf("÷", "×", "−", "+")
+private val TopFunctionSymbols = setOf("DEL", "C", "AC", "%")
 
 // 綁定你匯入的 InterDisplay-Medium 字體 (res/font/inter_display_medium.ttf)
 private val InterDisplayFont = FontFamily(
@@ -560,13 +578,14 @@ fun IosCalculatorApp(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val view = LocalView.current
 
-    // 載入已儲存的 iOS 樣式與自定義設定，並使用 rememberSaveable 鎖定狀態
+    // 單次讀取已儲存的 iOS 樣式與首次啟動旗標，並使用 rememberSaveable 鎖定狀態
+    val initialPrefs = remember { IosStylePreferences.loadInitial(context) }
     var styleSettings by rememberSaveable(stateSaver = IosStyleSettingsSaver) {
-        mutableStateOf(IosStylePreferences.load(context))
+        mutableStateOf(initialPrefs.first)
     }
     var showSettingsScreen by rememberSaveable { mutableStateOf(false) }
     var showFirstLaunchDialog by rememberSaveable {
-        mutableStateOf(!IosStylePreferences.isFirstLaunchCompleted(context))
+        mutableStateOf(!initialPrefs.second)
     }
 
     val resolved = remember(styleSettings) { resolveIosAppearance(styleSettings) }
@@ -599,8 +618,21 @@ fun IosCalculatorApp(modifier: Modifier = Modifier) {
         LastOperation(lastOpChar[0], lastOpOperand)
     } else null
 
-    // 歷程記錄清單與抽屜開關狀態
-    var historyItems by remember { mutableStateOf(loadHistoryFromPrefs(context)) }
+    // 歷程記錄清單與抽屜開關狀態（首幀完成後改於背景 IO 讀取與解析 JSON，避免阻塞冷啟動主執行緒）
+    var historyItems by remember { mutableStateOf<List<CalculationHistoryItem>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        val loaded = withContext(Dispatchers.IO) {
+            loadHistoryFromPrefs(context)
+        }
+        if (loaded.isNotEmpty()) {
+            historyItems = if (historyItems.isEmpty()) {
+                loaded
+            } else {
+                val existingIds = historyItems.mapTo(HashSet(historyItems.size)) { it.id }
+                historyItems + loaded.filterNot { it.id in existingIds }
+            }
+        }
+    }
     var showHistorySheet by rememberSaveable { mutableStateOf(false) }
 
     // 科學計算機專屬狀態：記憶值 (Memory)、2nd 反函數切換、弧度/角度 (Rad/Deg)
@@ -1054,24 +1086,20 @@ fun IosCalculatorApp(modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val swipeThresholdPx = with(density) { 36.dp.toPx() }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = resolved.backgroundColor
-    ) { innerPadding ->
-        // 使用 BoxWithConstraints 智慧偵測手機直向、手機橫向與平板 (iPadOS) 尺寸，徹底解決橫向與平板爆版問題
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(resolved.backgroundColor)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    showModeMenu = false
-                    showCopyBubble = false
-                }
-        ) {
+    // 使用 BoxWithConstraints 直接排版（移除多餘 Material3 Scaffold SubcomposeLayout 降低首幀開銷）
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(resolved.backgroundColor)
+            .systemBarsPadding()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                showModeMenu = false
+                showCopyBubble = false
+            }
+    ) {
             val isLandscape = maxWidth > maxHeight
             val isTablet = minOf(maxWidth, maxHeight) >= 600.dp
             val isCompactLandscape = isLandscape && !isTablet
@@ -1135,19 +1163,25 @@ fun IosCalculatorApp(modifier: Modifier = Modifier) {
                 }
             } * resolved.displayFontScaleMultiplier
 
-            val radDegButton = if (isRadians) "Deg" else "Rad"
-            val sciFifthRow = if (generation == IosLayoutGeneration.CLASSIC_12_17) {
-                listOf(radDegButton, if (isSecondMode) "sinh⁻¹" else "sinh", if (isSecondMode) "cosh⁻¹" else "cosh", if (isSecondMode) "tanh⁻¹" else "tanh", "π", "Rand")
-            } else {
-                listOf("Rand", if (isSecondMode) "sinh⁻¹" else "sinh", if (isSecondMode) "cosh⁻¹" else "cosh", if (isSecondMode) "tanh⁻¹" else "tanh", "π", radDegButton)
+            val sciRows = remember(isScientific, isSecondMode, isRadians, generation) {
+                if (!isScientific) {
+                    emptyList()
+                } else {
+                    val radDegButton = if (isRadians) "Deg" else "Rad"
+                    val sciFifthRow = if (generation == IosLayoutGeneration.CLASSIC_12_17) {
+                        listOf(radDegButton, if (isSecondMode) "sinh⁻¹" else "sinh", if (isSecondMode) "cosh⁻¹" else "cosh", if (isSecondMode) "tanh⁻¹" else "tanh", "π", "Rand")
+                    } else {
+                        listOf("Rand", if (isSecondMode) "sinh⁻¹" else "sinh", if (isSecondMode) "cosh⁻¹" else "cosh", if (isSecondMode) "tanh⁻¹" else "tanh", "π", radDegButton)
+                    }
+                    listOf(
+                        listOf("(", ")", "mc", "m+", "m-", "mr"),
+                        listOf("2nd", "x²", "x³", "xʸ", if (isSecondMode) "yˣ" else "eˣ", if (isSecondMode) "2ˣ" else "10ˣ"),
+                        listOf("1/x", "²√x", "³√x", "ʸ√x", if (isSecondMode) "logᵧ" else "ln", if (isSecondMode) "log₂" else "log₁₀"),
+                        listOf("x!", if (isSecondMode) "sin⁻¹" else "sin", if (isSecondMode) "cos⁻¹" else "cos", if (isSecondMode) "tan⁻¹" else "tan", "e", "EE"),
+                        sciFifthRow
+                    )
+                }
             }
-            val sciRows = listOf(
-                listOf("(", ")", "mc", "m+", "m-", "mr"),
-                listOf("2nd", "x²", "x³", "xʸ", if (isSecondMode) "yˣ" else "eˣ", if (isSecondMode) "2ˣ" else "10ˣ"),
-                listOf("1/x", "²√x", "³√x", "ʸ√x", if (isSecondMode) "logᵧ" else "ln", if (isSecondMode) "log₂" else "log₁₀"),
-                listOf("x!", if (isSecondMode) "sin⁻¹" else "sin", if (isSecondMode) "cos⁻¹" else "cos", if (isSecondMode) "tan⁻¹" else "tan", "e", "EE"),
-                sciFifthRow
-            )
 
             fun copyHistoryItemResult(text: String) {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -1752,7 +1786,6 @@ fun IosCalculatorApp(modifier: Modifier = Modifier) {
                     )
                 }
             }
-        }
     }
 }
 
@@ -1890,11 +1923,11 @@ private fun IosBasicKeypadRow(
             horizontalArrangement = Arrangement.spacedBy(colSpacing)
         ) {
             rowSymbols.forEach { symbol ->
-                val isOperator = symbol in listOf("÷", "×", "−", "+", "=")
-                val isTopFunction = symbol in listOf("DEL", "C", "AC", "%") ||
+                val isOperator = symbol in BasicOperatorSymbols
+                val isTopFunction = symbol in TopFunctionSymbols ||
                     ((generation == IosLayoutGeneration.CLASSIC_12_17 || generation == IosLayoutGeneration.MODERN_18) && symbol == "+/-")
                 val isActiveOperator = classicOperatorHighlight && isClassicLayout &&
-                    symbol in listOf("÷", "×", "−", "+") && activeOperatorChar == symbol[0]
+                    symbol in ActiveOperatorSymbols && activeOperatorChar == symbol[0]
 
                 IosCalculatorButton(
                     symbol = symbol,
@@ -1920,6 +1953,31 @@ private fun IosBasicKeypadRow(
     }
 }
 
+/**
+ * 延遲初始化顏色動畫：首幀未互動前不啟動 Animatable 與協程，首次按下或高亮後再維持平滑漸變回饋。
+ */
+@Composable
+private fun rememberLazyAnimatedColor(
+    targetColor: Color,
+    isPressed: Boolean,
+    isHighlightedOrActive: Boolean,
+    label: String
+): Color {
+    var hasInteracted by remember { mutableStateOf(false) }
+    if (isPressed || isHighlightedOrActive) {
+        hasInteracted = true
+    }
+    return if (hasInteracted) {
+        animateColorAsState(
+            targetValue = targetColor,
+            animationSpec = tween(durationMillis = if (isPressed) 50 else 200),
+            label = label
+        ).value
+    } else {
+        targetColor
+    }
+}
+
 // 科學計算機上方 5×6 專屬按鈕（支援上標 x²、下標 log₁₀、根號 ²√x 與斜體 e 排版）
 @Composable
 private fun IosScientificButton(
@@ -1939,9 +1997,10 @@ private fun IosScientificButton(
         else -> resolved.sciButtonColor
     }
 
-    val backgroundColor by animateColorAsState(
-        targetValue = targetBackgroundColor,
-        animationSpec = tween(durationMillis = if (isPressed) 50 else 200),
+    val backgroundColor = rememberLazyAnimatedColor(
+        targetColor = targetBackgroundColor,
+        isPressed = isPressed,
+        isHighlightedOrActive = isHighlighted,
         label = "SciButtonBg"
     )
 
@@ -2043,9 +2102,10 @@ private fun IosCalculatorButton(
         else -> resolved.digitButtonTextColor
     }
 
-    val backgroundColor by animateColorAsState(
-        targetValue = targetBackgroundColor,
-        animationSpec = tween(durationMillis = if (isPressed) 50 else 200),
+    val backgroundColor = rememberLazyAnimatedColor(
+        targetColor = targetBackgroundColor,
+        isPressed = isPressed,
+        isHighlightedOrActive = isActiveOperator,
         label = "ButtonBgAnimation"
     )
 

@@ -1,6 +1,7 @@
 package com.example.ioscalculatorapp
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -888,8 +889,27 @@ internal object IosStylePreferences {
     private const val KEY_AUTO_SCI_PHONE_LANDSCAPE = "auto_sci_phone_landscape"
     private const val KEY_APP_LANGUAGE = "app_language"
 
+    /**
+     * Triggers asynchronous SharedPreferences XML disk loading on a background worker thread early in Activity.onCreate().
+     */
+    fun preload(context: Context) {
+        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    /**
+     * Reads initial style settings and first-launch completion flag from a single SharedPreferences lookup.
+     */
+    fun loadInitial(context: Context): Pair<IosStyleSettingsData, Boolean> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return readFromPrefs(prefs) to prefs.getBoolean(KEY_FIRST_LAUNCH_COMPLETED, false)
+    }
+
     fun load(context: Context): IosStyleSettingsData {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return readFromPrefs(prefs)
+    }
+
+    private fun readFromPrefs(prefs: SharedPreferences): IosStyleSettingsData {
         val rawStyleId = prefs.getString(KEY_STYLE_ID, IosCalculatorStyle.IOS_27.id)
             ?: IosCalculatorStyle.IOS_27.id
         return IosStyleSettingsData(
