@@ -44,3 +44,13 @@ AI 回應：
 2. 修正 iOS 18（MODERN_18）右上角一律留白隱藏，模式選單改對齊鍵盤左下切換鈕；擴充背景基底主題（OLED/曜石深灰/午夜深藍/淺色白晝）、iOS 18 獨立排版混搭、液態玻璃邊框、按鍵文字圖示縮放、點擊音效與橫向自動切換開關。
 3. 讓設定頁與所有彈出面板全面適配淺色白晝主題，改為滿寬＋平板雙欄排版，並實作首次安裝 iOS 版本選擇畫面（預設推薦 iOS 27 最新主題）。
 4. 建立 values / values-zh-rTW / values-zh-rHK / values-zh-rCN 多語系資源與 AppLanguage 翻譯引擎，新增單位轉換與介面全面繁／簡／英三語切換與單元測試，並初始化 Git 與撰寫 README.md。
+
+
+--------------------------------------------------------------------------------
+[2026-11-22 10:55] 用戶提問 / AI 回應
+--------------------------------------------------------------------------------
+用戶提問：幫我這個 README 加上介紹文，再來個英文和簡體中文的。以及幫我套上軟體的圖示，簡體中文顯示计算器，英文也寫 Calculator。
+AI 回應：
+1. 更新各語系應用名稱 strings.xml：英文 (values & values-en) 設為 Calculator、簡體中文 (values-zh-rCN) 設為计算器、繁體中文 (values-zh-rTW & values-zh-rHK) 設為計算機。
+2. 設計並套用專屬 iOS 計算機風格 Android Adaptive Launcher Icon (ic_launcher_background.xml、ic_launcher_foreground.xml、ic_launcher_monochrome.xml 與 mipmap-anydpi)，移除預設 Android 綠機器人 webp 資源，並製作 docs/app-icon.svg。
+3. 撰寫完整三語 README 介紹文件（README.md、README_zh-CN.md、README_en.md），重編譯驗證通過後更新 GitHub Repository 與 Release v1.0.0 安裝檔。
